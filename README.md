@@ -2,13 +2,13 @@
 
 ## Description
 
-Duplicate file deleter is a macOS (Python) application designed to detect, select, and delete duplicate files in a specified folder and its subfolders.
+Duplicate file deleter is a cross-platform Python application designed to detect, select, and delete duplicate files in a specified folder and its subfolders.
 
 ## Installation
 
 ### Requirements
 - Python 3.7 or higher
-- macOS (tested on macOS 10.14+)
+- Windows, macOS, or Linux
 
 ### Setup
 1. Clone or download this repository
@@ -52,10 +52,10 @@ python3 main.py
 - **Auto-Select**: Keep first file in each group, delete the rest
 - **Select All to Keep/Delete**: Bulk selection options
 - **Clear Results**: Reset the interface for a new search
-- **Double-click files**: Open file location in Finder
+- **Double-click files**: Open file location in system file manager
 
 ### File Actions
-- **Safe Deletion**: Files are moved to macOS Trash (not permanently deleted)
+- **Safe Deletion**: Files are moved to system trash/recycle bin (not permanently deleted)
 - **Confirmation Dialog**: Always asks for confirmation before deleting files
 - **Error Handling**: Reports any files that couldn't be moved to trash
 
@@ -119,10 +119,10 @@ duplication_deleter/
 
 ## Technical Specifications
 
-- **Platform**: macOS
+- **Platform**: Cross-platform (Windows, macOS, Linux)
 - **Language**: Python 3.7+
 - **Hash Algorithm**: MD5
-- **UI Framework**: TKinter (with macOS Aqua theme)
+- **UI Framework**: TKinter (with platform-appropriate themes)
 - **File Operations**: Move to Trash (using send2trash library)
 - **Search**: Recursive through all subdirectories
 - **Threading**: Non-blocking UI with background processing

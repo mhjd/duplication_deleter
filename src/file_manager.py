@@ -20,7 +20,7 @@ class FileManager:
     
     def move_to_trash(self, file_path: str) -> bool:
         """
-        Move a file to trash (macOS Trash).
+        Move a file to trash (system trash/recycle bin).
         
         Args:
             file_path: Path to the file to be moved to trash

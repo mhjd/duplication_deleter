@@ -1,12 +1,14 @@
 """
 Main UI application for the Duplicate File Deleter.
-Built with TKinter for macOS.
+Built with TKinter for cross-platform use.
 """
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
 import os
+import platform
+import subprocess
 from typing import Dict, List, Optional, Set
 from datetime import datetime
 
@@ -46,12 +48,20 @@ class DuplicateFileDeleterApp:
     def configure_styles(self):
         """Configure custom styles for the application."""
         style = ttk.Style()
-        style.theme_use('aqua')  # macOS native theme
+        
+        # Use appropriate theme based on platform
+        system = platform.system()
+        if system == "Darwin":  # macOS
+            style.theme_use('aqua')
+        elif system == "Windows":
+            style.theme_use('vista')
+        else:  # Linux and others
+            style.theme_use('clam')
         
         # Configure custom styles
-        style.configure('Title.TLabel', font=('SF Pro Display', 16, 'bold'))
-        style.configure('Header.TLabel', font=('SF Pro Display', 12, 'bold'))
-        style.configure('Info.TLabel', font=('SF Pro Text', 10))
+        style.configure('Title.TLabel', font=('Arial', 16, 'bold'))
+        style.configure('Header.TLabel', font=('Arial', 12, 'bold'))
+        style.configure('Info.TLabel', font=('Arial', 10))
         style.configure('Success.TLabel', foreground='green')
         style.configure('Error.TLabel', foreground='red')
         style.configure('Warning.TLabel', foreground='orange')
@@ -347,9 +357,15 @@ class DuplicateFileDeleterApp:
         try:
             file_path = self.tree.set(item, 'file_path')
             if file_path and os.path.exists(file_path):
-                # Open file location in Finder
-                os.system(f'open -R "{file_path}"')
-        except tk.TclError:
+                # Open file location in system file manager
+                system = platform.system()
+                if system == "Darwin":  # macOS
+                    subprocess.run(["open", "-R", file_path])
+                elif system == "Windows":
+                    subprocess.run(["explorer", "/select,", file_path])
+                else:  # Linux and others
+                    subprocess.run(["xdg-open", os.path.dirname(file_path)])
+        except (tk.TclError, subprocess.SubprocessError):
             pass
     
     def select_all_keep(self):
@@ -392,7 +408,7 @@ class DuplicateFileDeleterApp:
             return
         
         # Show confirmation dialog
-        message = f"Are you sure you want to move {len(files_to_delete)} files to the Trash?\n\nThis action cannot be undone."
+        message = f"Are you sure you want to move {len(files_to_delete)} files to the trash?\n\nThis action cannot be undone."
         if not messagebox.askyesno("Confirm Deletion", message):
             return
         
@@ -405,9 +421,9 @@ class DuplicateFileDeleterApp:
         error_count = len(results) - success_count
         
         if error_count == 0:
-            messagebox.showinfo("Success", f"Successfully moved {success_count} files to Trash.")
+            messagebox.showinfo("Success", f"Successfully moved {success_count} files to trash.")
         else:
-            error_msg = f"Moved {success_count} files to Trash.\n{error_count} files could not be deleted.\n\nErrors:\n"
+            error_msg = f"Moved {success_count} files to trash.\n{error_count} files could not be deleted.\n\nErrors:\n"
             error_msg += "\n".join(self.file_manager.get_errors()[:5])  # Show first 5 errors
             messagebox.showwarning("Partial Success", error_msg)
         
