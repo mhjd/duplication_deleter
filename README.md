@@ -29,7 +29,7 @@ python3 main.py
 2. **Select a folder** to search by clicking "Browse" or typing the path
 3. **Start the search** by clicking "Search for Duplicates"
 4. **Review results** in the tree view showing duplicate groups
-5. **Select files** to keep or delete (click on files to toggle action)
+5. **Check files to delete** (click on files or groups to toggle checkboxes)
 6. **Delete selected files** by clicking "Delete Selected Files"
 
 ### UI Features
@@ -43,14 +43,15 @@ python3 main.py
 #### Duplicate Display
 - Duplicates are displayed in a hierarchical tree with sections
 - Each section groups all duplicates of a file together
-- Users can click on files to toggle between "keep" and "delete" actions
-- **Default mode is "keep"**: The first file in each group is set to "keep", others to "delete"
+- Users can click on files or groups to toggle checkboxes for deletion
+- **Simple selection**: Check the files you want to delete (unchecked files are kept)
+- **Group selection**: Click on group headers to select all files in that group (except the first one)
 - File information includes name, size, and relative path
 
 #### User Controls
 - **Stop Search**: Cancel the search at any time to proceed with current results
-- **Auto-Select**: Keep first file in each group, delete the rest
-- **Select All to Keep/Delete**: Bulk selection options
+- **Auto-Select (Keep First)**: Select all files for deletion except the first one in each group
+- **Select All/Deselect All**: Bulk selection options for all files
 - **Clear Results**: Reset the interface for a new search
 - **Double-click files**: Open file location in system file manager
 

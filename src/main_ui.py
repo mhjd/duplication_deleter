@@ -37,7 +37,7 @@ class DuplicateFileDeleterApp:
         self.search_thread = None
         self.duplicates = {}
         self.duplicate_groups = []
-        self.file_selections = {}  # file_path -> "keep" or "delete"
+        self.file_selections = {}  # file_path -> boolean (True = selected for deletion)
         
         # Create UI
         self.create_widgets()
@@ -146,17 +146,17 @@ class DuplicateFileDeleterApp:
         results_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
         # Create treeview for displaying duplicates
-        self.tree = ttk.Treeview(results_frame, columns=('Size', 'Path', 'Action', 'file_path'), show='tree headings')
+        self.tree = ttk.Treeview(results_frame, columns=('Delete', 'Size', 'Path', 'file_path'), show='tree headings')
         self.tree.heading('#0', text='File Name')
+        self.tree.heading('Delete', text='Delete')
         self.tree.heading('Size', text='Size')
         self.tree.heading('Path', text='Path')
-        self.tree.heading('Action', text='Action')
         
         # Configure column widths
         self.tree.column('#0', width=300)
+        self.tree.column('Delete', width=60)
         self.tree.column('Size', width=100)
         self.tree.column('Path', width=400)
-        self.tree.column('Action', width=100)
         self.tree.column('file_path', width=0)  # Hidden column for storing file path
         
         # Scrollbars for treeview
@@ -186,17 +186,17 @@ class DuplicateFileDeleterApp:
         action_frame = ttk.Frame(parent)
         action_frame.grid(row=4, column=0, columnspan=3, pady=(10, 0))
         
-        # Select all keep button
-        self.select_all_keep_button = ttk.Button(action_frame, text="Select All to Keep", 
-                                                command=self.select_all_keep, state=tk.DISABLED)
-        self.select_all_keep_button.grid(row=0, column=0, padx=(0, 10))
+        # Select all button
+        self.select_all_button = ttk.Button(action_frame, text="Select All", 
+                                           command=self.select_all, state=tk.DISABLED)
+        self.select_all_button.grid(row=0, column=0, padx=(0, 10))
         
-        # Select all delete button
-        self.select_all_delete_button = ttk.Button(action_frame, text="Select All to Delete", 
-                                                  command=self.select_all_delete, state=tk.DISABLED)
-        self.select_all_delete_button.grid(row=0, column=1, padx=(0, 10))
+        # Deselect all button
+        self.deselect_all_button = ttk.Button(action_frame, text="Deselect All", 
+                                             command=self.deselect_all, state=tk.DISABLED)
+        self.deselect_all_button.grid(row=0, column=1, padx=(0, 10))
         
-        # Auto-select button (keep first, delete rest)
+        # Auto-select button (select all except first in each group)
         self.auto_select_button = ttk.Button(action_frame, text="Auto-Select (Keep First)", 
                                             command=self.auto_select, state=tk.DISABLED)
         self.auto_select_button.grid(row=0, column=2, padx=(0, 10))
@@ -287,24 +287,25 @@ class DuplicateFileDeleterApp:
             
             # Create group header
             group_name = f"Group {group_count} ({len(files)} files)"
-            group_item = self.tree.insert('', 'end', text=group_name, values=('', '', ''))
+            group_item = self.tree.insert('', 'end', text=group_name, values=('', '', '', ''))
             
             # Add files to group
-            for file_path in files:
+            for i, file_path in enumerate(files):
                 file_info = self.file_manager.get_file_info(file_path)
                 if file_info:
                     relative_path = self.file_manager.get_relative_path(file_path, self.selected_folder.get())
                     size_str = self.file_manager.format_file_size(file_info['size'])
                     
-                    # Default action is keep for first file, delete for others
-                    action = "keep" if file_path == files[0] else "delete"
-                    self.file_selections[file_path] = action
+                    # Default selection: nothing is selected initially
+                    is_selected = False
+                    self.file_selections[file_path] = is_selected
                     
-                    # Insert file item
+                    # Insert file item with checkbox in Delete column
+                    checkbox_text = "☑" if is_selected else "☐"
                     file_item = self.tree.insert(group_item, 'end', text=file_info['name'], 
-                                               values=(size_str, relative_path, action))
+                                               values=(checkbox_text, size_str, relative_path, file_path))
                     
-                    # Store file path in item
+                    # Store file path in item for easy access
                     self.tree.set(file_item, 'file_path', file_path)
             
             # Store group information
@@ -322,31 +323,112 @@ class DuplicateFileDeleterApp:
         self.results_info.config(text=f"Found {group_count} duplicate groups with {total_files} files")
         
         # Enable action buttons
-        self.select_all_keep_button.config(state=tk.NORMAL)
-        self.select_all_delete_button.config(state=tk.NORMAL)
+        self.select_all_button.config(state=tk.NORMAL)
+        self.deselect_all_button.config(state=tk.NORMAL)
         self.auto_select_button.config(state=tk.NORMAL)
         self.delete_button.config(state=tk.NORMAL)
         self.clear_button.config(state=tk.NORMAL)
     
     def on_item_click(self, event):
-        """Handle item click to toggle action."""
-        item = self.tree.selection()[0] if self.tree.selection() else None
+        """Handle item click to toggle checkbox."""
+        # Get the item that was clicked
+        item = self.tree.identify_row(event.y)
         if not item:
             return
+        
+        # Get the column that was clicked
+        column = self.tree.identify_column(event.x)
         
         # Check if it's a file item (has file_path)
         try:
             file_path = self.tree.set(item, 'file_path')
             if file_path and file_path in self.file_selections:
-                # Toggle action
-                current_action = self.file_selections[file_path]
-                new_action = "delete" if current_action == "keep" else "keep"
-                self.file_selections[file_path] = new_action
+                # Toggle checkbox (works for any column click on file)
+                current_selection = self.file_selections[file_path]
+                new_selection = not current_selection
+                self.file_selections[file_path] = new_selection
                 
                 # Update display
-                self.tree.set(item, 'Action', new_action)
+                self.update_file_display(item, file_path, new_selection)
+                self.update_group_display_for_file(item)
+                
+            # Check if it's a group item (no file_path)
+            elif not file_path:
+                # Handle group selection
+                self.toggle_group_selection(item)
         except tk.TclError:
-            pass  # Not a file item
+            pass  # Not a valid item
+    
+    def update_file_display(self, item, file_path, is_selected):
+        """Update the display of a file item with checkbox."""
+        # Update checkbox in Delete column
+        checkbox_text = "☑" if is_selected else "☐"
+        self.tree.set(item, 'Delete', checkbox_text)
+    
+    def update_group_display_for_file(self, file_item):
+        """Update group display when a file selection changes."""
+        # Find the parent group
+        parent = self.tree.parent(file_item)
+        if parent:
+            self.update_group_display(parent)
+    
+    def toggle_group_selection(self, group_item):
+        """Toggle selection for all files in a group (except first one)."""
+        children = self.tree.get_children(group_item)
+        if not children:
+            return
+        
+        # Check current state of group - if any file is selected, deselect all
+        # If none are selected, select all except first
+        any_selected = False
+        for child in children:
+            try:
+                file_path = self.tree.set(child, 'file_path')
+                if file_path in self.file_selections and self.file_selections[file_path]:
+                    any_selected = True
+                    break
+            except tk.TclError:
+                continue
+        
+        # Toggle group selection
+        for i, child in enumerate(children):
+            try:
+                file_path = self.tree.set(child, 'file_path')
+                if file_path in self.file_selections:
+                    if any_selected:
+                        # Deselect all
+                        self.file_selections[file_path] = False
+                    else:
+                        # Select all except first
+                        self.file_selections[file_path] = i > 0
+                    
+                    self.update_file_display(child, file_path, self.file_selections[file_path])
+            except tk.TclError:
+                continue
+        
+        # Update group checkbox
+        self.update_group_display(group_item)
+    
+    def update_group_display(self, group_item):
+        """Update the display of a group item with checkbox."""
+        children = self.tree.get_children(group_item)
+        if not children:
+            return
+        
+        # Check if any files are selected
+        any_selected = False
+        for child in children:
+            try:
+                file_path = self.tree.set(child, 'file_path')
+                if file_path in self.file_selections and self.file_selections[file_path]:
+                    any_selected = True
+                    break
+            except tk.TclError:
+                continue
+        
+        # Update group checkbox in Delete column
+        checkbox_text = "☑" if any_selected else "☐"
+        self.tree.set(group_item, 'Delete', checkbox_text)
     
     def on_item_double_click(self, event):
         """Handle item double-click to open file location."""
@@ -368,40 +450,43 @@ class DuplicateFileDeleterApp:
         except (tk.TclError, subprocess.SubprocessError):
             pass
     
-    def select_all_keep(self):
-        """Select all files to keep."""
+    def select_all(self):
+        """Select all files for deletion."""
         for file_path in self.file_selections:
-            self.file_selections[file_path] = "keep"
-        self.refresh_tree_actions()
+            self.file_selections[file_path] = True
+        self.refresh_tree_display()
     
-    def select_all_delete(self):
-        """Select all files to delete."""
+    def deselect_all(self):
+        """Deselect all files."""
         for file_path in self.file_selections:
-            self.file_selections[file_path] = "delete"
-        self.refresh_tree_actions()
+            self.file_selections[file_path] = False
+        self.refresh_tree_display()
     
     def auto_select(self):
-        """Auto-select: keep first file in each group, delete the rest."""
+        """Auto-select: select all files except the first one in each group."""
         for group in self.duplicate_groups:
             files = group['files']
             for i, file_path in enumerate(files):
-                self.file_selections[file_path] = "keep" if i == 0 else "delete"
-        self.refresh_tree_actions()
+                self.file_selections[file_path] = i > 0  # True for all except first
+        self.refresh_tree_display()
     
-    def refresh_tree_actions(self):
-        """Refresh the action column in the tree view."""
-        for item in self.tree.get_children():
-            for child in self.tree.get_children(item):
+    def refresh_tree_display(self):
+        """Refresh the checkbox display in the tree view."""
+        for group_item in self.tree.get_children():
+            for child in self.tree.get_children(group_item):
                 try:
                     file_path = self.tree.set(child, 'file_path')
                     if file_path in self.file_selections:
-                        self.tree.set(child, 'Action', self.file_selections[file_path])
+                        self.update_file_display(child, file_path, self.file_selections[file_path])
                 except tk.TclError:
                     pass
+            
+            # Update group display
+            self.update_group_display(group_item)
     
     def delete_selected(self):
         """Delete selected files after confirmation."""
-        files_to_delete = [path for path, action in self.file_selections.items() if action == "delete"]
+        files_to_delete = [path for path, is_selected in self.file_selections.items() if is_selected]
         
         if not files_to_delete:
             messagebox.showinfo("No Files Selected", "No files are selected for deletion.")
@@ -432,9 +517,9 @@ class DuplicateFileDeleterApp:
     
     def remove_deleted_files_from_display(self, deleted_files: List[str]):
         """Remove deleted files from the tree display."""
-        for item in self.tree.get_children():
+        for group_item in self.tree.get_children():
             children_to_remove = []
-            for child in self.tree.get_children(item):
+            for child in self.tree.get_children(group_item):
                 try:
                     file_path = self.tree.set(child, 'file_path')
                     if file_path in deleted_files:
@@ -447,8 +532,11 @@ class DuplicateFileDeleterApp:
                 self.tree.delete(child)
                 
             # Remove group if no children left
-            if not self.tree.get_children(item):
-                self.tree.delete(item)
+            if not self.tree.get_children(group_item):
+                self.tree.delete(group_item)
+            else:
+                # Update group display after removing files
+                self.update_group_display(group_item)
         
         # Update file selections
         for file_path in deleted_files:
@@ -469,8 +557,8 @@ class DuplicateFileDeleterApp:
         self.progress_text.delete(1.0, tk.END)
         
         # Disable action buttons
-        self.select_all_keep_button.config(state=tk.DISABLED)
-        self.select_all_delete_button.config(state=tk.DISABLED)
+        self.select_all_button.config(state=tk.DISABLED)
+        self.deselect_all_button.config(state=tk.DISABLED)
         self.auto_select_button.config(state=tk.DISABLED)
         self.delete_button.config(state=tk.DISABLED)
         self.clear_button.config(state=tk.DISABLED)
