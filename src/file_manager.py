@@ -18,6 +18,26 @@ class FileManager:
         self.deleted_files = []
         self.errors = []
     
+    def _normalize_path(self, file_path: str) -> str:
+        """
+        Normalize file path for the current operating system.
+        
+        Args:
+            file_path: Path to normalize
+            
+        Returns:
+            Normalized path string
+        """
+        # Convert to Path object and resolve
+        path = Path(file_path)
+        try:
+            # Resolve path to absolute path and normalize separators
+            normalized = path.resolve()
+            return str(normalized)
+        except (OSError, ValueError):
+            # If resolve fails, try basic normalization
+            return os.path.normpath(os.path.abspath(file_path))
+    
     def move_to_trash(self, file_path: str) -> bool:
         """
         Move a file to trash (system trash/recycle bin).
@@ -29,13 +49,33 @@ class FileManager:
             True if successful, False otherwise
         """
         try:
-            if os.path.exists(file_path):
-                send2trash.send2trash(file_path)
-                self.deleted_files.append(file_path)
-                return True
-            else:
-                self.errors.append(f"File not found: {file_path}")
+            # Normalize the path first
+            normalized_path = self._normalize_path(file_path)
+            
+            # Check if file exists using normalized path
+            if not os.path.exists(normalized_path):
+                self.errors.append(f"File not found: {normalized_path}")
                 return False
+            
+            # Check if file is actually a file (not a directory)
+            if not os.path.isfile(normalized_path):
+                self.errors.append(f"Path is not a file: {normalized_path}")
+                return False
+            
+            # Try to move to trash
+            send2trash.send2trash(normalized_path)
+            self.deleted_files.append(normalized_path)
+            return True
+            
+        except PermissionError as e:
+            self.errors.append(f"Permission denied for {file_path}: {str(e)}")
+            return False
+        except FileNotFoundError as e:
+            self.errors.append(f"File not found {file_path}: {str(e)}")
+            return False
+        except OSError as e:
+            self.errors.append(f"OS error moving {file_path} to trash: {str(e)}")
+            return False
         except Exception as e:
             self.errors.append(f"Error moving {file_path} to trash: {str(e)}")
             return False
@@ -66,16 +106,19 @@ class FileManager:
             Dictionary with file information or None if file doesn't exist
         """
         try:
-            if not os.path.exists(file_path):
+            # Normalize path first
+            normalized_path = self._normalize_path(file_path)
+            
+            if not os.path.exists(normalized_path):
                 return None
                 
-            stat_info = os.stat(file_path)
+            stat_info = os.stat(normalized_path)
             return {
-                'path': file_path,
-                'name': os.path.basename(file_path),
+                'path': normalized_path,
+                'name': os.path.basename(normalized_path),
                 'size': stat_info.st_size,
                 'modified': stat_info.st_mtime,
-                'directory': os.path.dirname(file_path),
+                'directory': os.path.dirname(normalized_path),
                 'exists': True
             }
         except Exception as e:
@@ -96,11 +139,12 @@ class FileManager:
         
         size_names = ["B", "KB", "MB", "GB", "TB"]
         i = 0
-        while size_bytes >= 1024 and i < len(size_names) - 1:
-            size_bytes /= 1024.0
+        size_float = float(size_bytes)
+        while size_float >= 1024 and i < len(size_names) - 1:
+            size_float /= 1024.0
             i += 1
         
-        return f"{size_bytes:.1f} {size_names[i]}"
+        return f"{size_float:.1f} {size_names[i]}"
     
     def get_relative_path(self, file_path: str, base_path: str) -> str:
         """
@@ -114,7 +158,10 @@ class FileManager:
             Relative path string
         """
         try:
-            return os.path.relpath(file_path, base_path)
+            # Normalize both paths first
+            normalized_file = self._normalize_path(file_path)
+            normalized_base = self._normalize_path(base_path)
+            return os.path.relpath(normalized_file, normalized_base)
         except ValueError:
             return file_path
     

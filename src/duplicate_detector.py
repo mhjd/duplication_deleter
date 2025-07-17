@@ -21,6 +21,26 @@ class DuplicateDetector:
         self.stop_search = False
         self.current_operation = ""
         
+    def _normalize_path(self, file_path: str) -> str:
+        """
+        Normalize file path for the current operating system.
+        
+        Args:
+            file_path: Path to normalize
+            
+        Returns:
+            Normalized path string
+        """
+        # Convert to Path object and resolve
+        path = Path(file_path)
+        try:
+            # Resolve path to absolute path and normalize separators
+            normalized = path.resolve()
+            return str(normalized)
+        except (OSError, ValueError):
+            # If resolve fails, try basic normalization
+            return os.path.normpath(os.path.abspath(file_path))
+        
     def calculate_md5(self, file_path: str) -> Optional[str]:
         """
         Calculate MD5 hash of a file.
@@ -32,8 +52,11 @@ class DuplicateDetector:
             MD5 hash string or None if file cannot be read
         """
         try:
+            # Normalize path first
+            normalized_path = self._normalize_path(file_path)
+            
             hash_md5 = hashlib.md5()
-            with open(file_path, "rb") as f:
+            with open(normalized_path, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
                     hash_md5.update(chunk)
             return hash_md5.hexdigest()
@@ -52,7 +75,9 @@ class DuplicateDetector:
             File size in bytes or None if file cannot be accessed
         """
         try:
-            return os.path.getsize(file_path)
+            # Normalize path first
+            normalized_path = self._normalize_path(file_path)
+            return os.path.getsize(normalized_path)
         except (IOError, OSError, PermissionError):
             return None
     
@@ -82,11 +107,14 @@ class DuplicateDetector:
         total_dirs = 0
         processed_dirs = 0
         
+        # Normalize root directory first
+        normalized_root = self._normalize_path(root_dir)
+        
         # Count total directories for progress
-        for root, dirs, _ in os.walk(root_dir):
+        for root, dirs, _ in os.walk(normalized_root):
             total_dirs += 1
         
-        for root, dirs, filenames in os.walk(root_dir):
+        for root, dirs, filenames in os.walk(normalized_root):
             if self.stop_search:
                 break
                 
@@ -103,15 +131,18 @@ class DuplicateDetector:
                     
                 file_path = os.path.join(root, filename)
                 
+                # Normalize the file path
+                normalized_file_path = self._normalize_path(file_path)
+                
                 # Skip hidden files
-                if self.is_hidden_file(file_path):
+                if self.is_hidden_file(normalized_file_path):
                     continue
                 
                 # Skip if file is not accessible
-                if not os.path.isfile(file_path):
+                if not os.path.isfile(normalized_file_path):
                     continue
                 
-                files.append(file_path)
+                files.append(normalized_file_path)
         
         return files
     
